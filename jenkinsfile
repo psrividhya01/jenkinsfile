@@ -2,9 +2,7 @@ pipeline {
   agent any
 
   environment {
-    FRONTEND_IMAGE = 'frontend'
-    BACKEND_IMAGE  = 'backend'
-    BUILD_TAG      = "${env.BUILD_NUMBER}"
+    BUILD_TAG = "${env.BUILD_NUMBER}"
   }
 
   stages {
@@ -54,56 +52,14 @@ pipeline {
       }
     }
 
-    stage('Docker Build') {
-      parallel {
-
-        stage('Frontend Docker') {
-          steps {
-            dir('frontend') {
-              bat "docker build -t ${FRONTEND_IMAGE}:${BUILD_TAG} ."
-              bat "docker tag ${FRONTEND_IMAGE}:${BUILD_TAG} ${FRONTEND_IMAGE}:latest"
-            }
-          }
-        }
-
-        stage('Backend Docker') {
-          steps {
-            dir('backend') {
-              bat "docker build -t ${BACKEND_IMAGE}:${BUILD_TAG} ."
-              bat "docker tag ${BACKEND_IMAGE}:${BUILD_TAG} ${BACKEND_IMAGE}:latest"
-            }
-          }
-        }
-
-      }
-    }
-
-    stage('Run Containers') {
-      steps {
-        bat "docker stop frontend-container || exit 0"
-        bat "docker rm   frontend-container || exit 0"
-        bat "docker stop backend-container  || exit 0"
-        bat "docker rm   backend-container  || exit 0"
-        bat "docker run -d --name frontend-container -p 4200:80 ${FRONTEND_IMAGE}:latest"
-        bat "docker run -d --name backend-container  -p 5000:80 ${BACKEND_IMAGE}:latest"
-      }
-    }
-
-    stage('Health Check') {
-      steps {
-        sleep(time: 10, unit: 'SECONDS')
-        bat 'curl -f http://localhost:5000/health || exit 0'
-      }
-    }
-
   }
 
   post {
     success {
-      echo 'Build successful and containers are running!'
+      echo 'Build successful!'
     }
     failure {
-      echo 'Pipeline failed — check the logs above.'
+      echo 'Build failed — check the logs.'
     }
   }
 }
