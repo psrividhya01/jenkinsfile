@@ -1,0 +1,36 @@
+pipeline {
+    agent any
+
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'REPO_NAME', value: '$.repository.name']
+            ],
+            token: 'my-secret-token'
+        )
+    }
+
+    stages {
+        stage('Detect Repo') {
+            steps {
+                script {
+                    echo "Triggered by: ${env.REPO_NAME}"
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            when { expression { env.REPO_NAME == 'frontend-repo-name' } }
+            steps {
+                sh 'npm install && npm run build'
+            }
+        }
+
+        stage('Build Backend') {
+            when { expression { env.REPO_NAME == 'backend-repo-name' } }
+            steps {
+                sh './mvnw clean install'
+            }
+        }
+    }
+}
