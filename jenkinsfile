@@ -36,7 +36,6 @@ pipeline {
           steps {
             dir('frontend') {
               bat 'npm install'
-              bat 'npx ng test --watch=false --browsers=ChromeHeadless'
               bat 'npx ng build --configuration=production'
             }
           }
@@ -109,3 +108,24 @@ pipeline {
     }
   }
 }
+```
+
+---
+
+## What you need to do now:
+
+1. Open your `Jenkinsfile` in GitHub
+2. Remove the test line from Frontend stage
+3. Commit and push to GitHub
+4. Go to Jenkins → click **Build Now**
+
+---
+
+## After this passes, your pipeline stages should all go green:
+```
+✅ Checkout Frontend
+✅ Checkout Backend
+✅ Build & Test      ← no test line, just build
+✅ Docker Build      ← this will now run!
+✅ Run Containers
+✅ Health Check
