@@ -1,36 +1,111 @@
 pipeline {
-    agent any
+  agent any
 
-    triggers {
-        GenericTrigger(
-            genericVariables: [
-                [key: 'REPO_NAME', value: '$.repository.name']
-            ],
-            token: 'my-secret-token'
-        )
+  environment {
+    FRONTEND_IMAGE = 'frontend'
+    BACKEND_IMAGE  = 'backend'
+    BUILD_TAG      = "${env.BUILD_NUMBER}"
+  }
+
+  stages {
+
+    stage('Checkout Frontend') {
+      steps {
+        dir('frontend') {
+          git branch: 'main',
+              url: 'https://github.com/psrividhya01/Auth-Frontend.git',
+              credentialsId: 'github-credentials'
+        }
+      }
     }
 
-    stages {
-        stage('Detect Repo') {
-            steps {
-                script {
-                    echo "Triggered by: ${env.REPO_NAME}"
-                }
-            }
+    stage('Checkout Backend') {
+      steps {
+        dir('backend') {
+          git branch: 'main',
+              url: 'https://github.com/psrividhya01/Auth-backend.git',
+              credentialsId: 'github-credentials'
         }
-
-        stage('Build Frontend') {
-            when { expression { env.REPO_NAME == 'frontend-repo-name' } }
-            steps {
-                sh 'npm install && npm run build'
-            }
-        }
-
-        stage('Build Backend') {
-            when { expression { env.REPO_NAME == 'backend-repo-name' } }
-            steps {
-                sh './mvnw clean install'
-            }
-        }
+      }
     }
+
+    stage('Build & Test') {
+      parallel {
+
+        stage('Frontend') {
+          steps {
+            dir('frontend') {
+              bat  'npm install'
+              bat 'ng test --watch=false --browsers=ChromeHeadless'
+              bat 'ng build --configuration=production'
+            }
+          }
+        }
+
+        stage('Backend') {
+          steps {
+            dir('backend') {
+              bat 'dotnet restore'
+              bat 'dotnet test'
+              bat 'dotnet publish -c Release -o ./publish'
+            }
+          }
+        }
+
+      }
+    }
+
+    stage('Docker Build') {
+      parallel {
+
+        stage('Frontend Docker') {
+          steps {
+            dir('frontend') {
+              bat "docker build -t ${FRONTEND_IMAGE}:${BUILD_TAG} ."
+              bat "docker tag ${FRONTEND_IMAGE}:${BUILD_TAG} ${FRONTEND_IMAGE}:latest"
+            }
+          }
+        }
+
+        stage('Backend Docker') {
+          steps {
+            dir('backend') {
+              bat "docker build -t ${BACKEND_IMAGE}:${BUILD_TAG} ."
+              bat "docker tag ${BACKEND_IMAGE}:${BUILD_TAG} ${BACKEND_IMAGE}:latest"
+            }
+          }
+        }
+
+      }
+    }
+
+    stage('Run Containers') {
+      steps {
+        bat "docker stop frontend-container || true"
+        bat "docker rm   frontend-container || true"
+        bat "docker stop backend-container  || true"
+        bat "docker rm   backend-container  || true"
+
+        bat "docker run -d --name frontend-container -p 4200:80 ${FRONTEND_IMAGE}:latest"
+        bat "docker run -d --name backend-container  -p 5000:80 ${BACKEND_IMAGE}:latest"
+      }
+    }
+
+    stage('Health Check') {
+      steps {
+        sleep(time: 10, unit: 'SECONDS')
+        bat 'curl -f http://localhost:5000/health || exit 1'
+      }
+    }
+
+  }
+
+  post {
+    success {
+      echo '✅ Build, Docker image created and containers are running!'
+    }
+    failure {
+      echo '❌ Pipeline failed — check the logs above.'
+    }
+  }
 }
